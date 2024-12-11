@@ -1,0 +1,258 @@
+#Load packages
+  library(tseries) 
+  library(forecast) 
+  library(tidyverse)
+  library(urca)
+  library(TSstudio)
+  
+#Obtained the average adjusted weekly closing stock price of three entities, namely, SMDC, Ayala Corp., and the PSEi index, from 2020 to 2024.
+
+#SMDC
+  #Load the dataset
+    SMDC <- read.csv("SM Investments Historical Data (1) copy.csv")
+    
+    SMDC$Date <- as.Date(SMDC$Date, format = "%m/%d/%Y")
+    SMDC <- SMDC[order(SMDC$Date), ]
+    
+  #Removes commas and convert the Price column to numeric
+    SMDC$Price <- as.numeric(gsub(",", "", SMDC$Price)) #If you do not have this code, you will encounter price plot issue because R could not read up to thousands place with decimals. 
+  
+  #Transform data into a Time Series object for ARIMA modeling and further regression
+    SMDCPrice  <- ts(SMDC['Price'], start = c(2020,01,05),frequency = 52) 
+  #Frequency is 52 for weekly, starting with January of 2014
+  #Price is the column name for the closing price of SMDC 
+  
+    autoplot(SMDCPrice) + geom_line(color = "turquoise")+ ggtitle("Weekly SMDC Stock Price from 2020 to 2024 (in PHP)") + ylab("Price") + theme(plot.title = element_text(color = "royalblue")) 
+    
+  #Let's conduct in-sample forecasting before we outsample forecast to see what model we should use. 
+    
+  #In sample forecasting
+  #Split the sample into training and test sets
+    split_SMDCPrice <- ts_split(SMDCPrice, sample.out = 52)
+    SMDCtrain <- split_SMDCPrice$train
+    SMDCtest <- split_SMDCPrice$test
+    
+    length(SMDCtrain)
+    length(SMDCtest)
+    
+  #FIRST: ARIMA diagnostic to know what lags to use
+    arima_diag(SMDCtrain)
+    
+  #First in-sample: ARIMA(1,1,1) model
+    SMarima111 <- arima(SMDCtrain, order=c(1,1,1))
+    autoplot(SMarima111)
+    print(summary(SMarima111))
+    checkresiduals(SMarima111)
+    
+    SMDCfcast1 <- forecast(SMarima111,h=52)
+    test_forecast(actual=SMDCPrice, forecast.obj = SMDCfcast1, test = SMDCtest)
+    accuracy(SMDCfcast1, SMDCtest)
+    
+  #Second in-sample: auto.arima model
+    SMDCautoARIMA <- auto.arima(SMDCtrain, seasonal = TRUE)
+    print(summary(SMDCautoARIMA))
+    checkresiduals(SMDCautoARIMA)
+    autoplot(SMDCautoARIMA)
+    
+    
+    SMDCfcastt <- forecast(SMDCautoARIMA,h=52)
+    test_forecast(actual=SMDCPrice, forecast.obj = SMDCfcastt, test = SMDCtest)
+    
+  #There could be a better model; adjust lag paramaters until we can achieve lower RMSE and see an improvement in in-sample forecast. 
+  #Third in-sample: SARIMA(1,1,2)(1,0,1) model
+    SMFCman1ARIMA <- arima(SMDCtrain, order=c(1,1,2), seasonal = list(order = c(1,0,1)))
+    autoplot(SMFCman1ARIMA)
+    print(summary(SMFCman1ARIMA))
+    checkresiduals(SMFCman1ARIMA)
+    
+    SMDCfcastMan1 <- forecast(SMFCman1ARIMA, h=52)
+    test_forecast(actual= SMDCPrice, forecast.obj = SMDCfcastMan1, test = SMDCtest)
+    
+    SMDCfinalfit <- arima(SMDCPrice, order=c(1,1,2), seasonal = list(order = c(1,0,1)))
+    autoplot(SMDCfinalfit)
+    check_res(SMDCfinalfit)
+    
+  #Generate Out of Sample Forecast for SMDC
+    SMDCFinalFcast <- forecast(SMDCPrice, model = SMDCfinalfit, h = 1) 
+   #cus we only want to know 1 period ahead
+    accuracy(SMDCFinalFcast)
+    autoplot
+    plot(SMDCFinalFcast)
+    print(summary(SMDCFinalFcast))
+  
+      
+#AYALA 
+  #Load Ayala Dataset
+    Ayala <- read.csv("Ayala Corp Historical Data (1) copy.csv")
+    
+    Ayala$Date <- as.Date(Ayala$Date, format = "%m/%d/%Y")
+    Ayala <- Ayala[order(Ayala$Date), ]
+    
+   #Removes commas and convert the Price column to numeric
+    Ayala$Price <- as.numeric(gsub(",", "", Ayala$Price)) 
+    
+   #Transform data into a Time Series object for ARIMA modeling and further regression
+    APrice  <- ts(Ayala['Price'], start = c(2020,01),frequency = 52) 
+  #Frequency is 52 for weekly, starting with January of 2014
+  #Price is the column name for the closing price of SMDC 
+    
+    autoplot(APrice) + geom_line(color = "salmon")+ ggtitle("Weekly Ayala Stock Price from 2020 to 2024 (in PHP)") + ylab("Price") + theme(plot.title = element_text(color = "maroon"))
+  
+   #Let's conduct in-sample forecasting before we outsample forecast to see what model we should use. 
+    
+   #In sample forecasting
+   #Split the sample into training and test sets
+    split_APrice <- ts_split(APrice, sample.out = 52)
+    Atrain <- split_APrice$train
+    Atest <- split_APrice$test
+    
+    length(Atrain)
+    length(Atest)
+    
+  #FIRST: ARIMA diagnostic to know what lags to use
+    arima_diag(Atrain)
+    
+  #First in-sample: ARIMA(1,1,1) model
+    ACarima111 <- arima(Atrain, order=c(1,1,1))
+    autoplot(ACarima111)
+    print(summary(ACarima111))
+    checkresiduals(ACarima111)
+    
+    ACfcast1 <- forecast(ACarima111,h=52)
+    test_forecast(actual = APrice, forecast.obj = ACfcast1, test = Atest)
+    accuracy(ACfcast1, Atest)
+    
+  #No unit roots. Model is stable, but forecast could be improved.  
+    
+  #Second in-sample: auto.arima model
+    ACautoARIMA <- auto.arima(Atrain, seasonal = TRUE)
+    autoplot(ACautoARIMA)
+    print(summary(ACautoARIMA))
+    checkresiduals(ACautoARIMA)
+    
+    ACfcastauto <- forecast(ACautoARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastauto, test = Atest)
+    
+   #autoplot shows that the model is stable, although the forecast could be improved.
+    
+    #Third in-sample: ARIMA(2,1,2) model
+    ACman1ARIMA <- arima(Atrain, order=c(2,1,2))
+    autoplot(ACman1ARIMA)
+    print(summary(ACman1ARIMA))
+    checkresiduals(ACman1ARIMA)
+    
+    ACfcastMan1 <- forecast(ACman1ARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastMan1, test = Atest)
+    
+    #Fourth in-sample: ARIMA(2,1,3) model
+    ACman2ARIMA <- arima(Atrain, order=c(2,1,3))
+    autoplot(ACman2ARIMA)
+    print(summary(ACman2ARIMA))
+    checkresiduals(ACman2ARIMA)
+    
+    ACfcastMan2 <- forecast(ACman2ARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastMan2, test = Atest)
+    
+    
+    #Fifth in-sample: ARIMA(3,1,2) model
+    ACman3ARIMA <- arima(Atrain, order=c(3,1,2))
+    autoplot(ACman3ARIMA)
+    print(summary(ACman3ARIMA))
+    checkresiduals(ACman3ARIMA)
+    
+    ACfcastMan3 <- forecast(ACman3ARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastMan3, test = Atest)
+    
+    
+    #Sixth in-sample: ARIMA(3,1,3) model
+    ACman4ARIMA <- arima(Atrain, order=c(3,1,3))
+    autoplot(ACman4ARIMA)
+    print(summary(ACman4ARIMA))
+    checkresiduals(ACman4ARIMA)
+    
+    ACfcastMan4 <- forecast(ACman4ARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastMan4, test = Atest)
+    
+    #Sixth in-sample: SARIMA(3,1,3)(1,0,0) model
+    ACman7ARIMA <- arima(Atrain, order=c(3,1,3), seasonal = list(order = c(1,0,0)))
+    autoplot(ACman7ARIMA)
+    print(summary(ACman7ARIMA))
+    checkresiduals(ACman7ARIMA)
+    
+    ACfcastMan7 <- forecast(ACman7ARIMA, h=52)
+    test_forecast(actual= APrice, forecast.obj = ACfcastMan7, test = Atest)
+    
+  #No improvement. Will use auto.arima() for out-sample forecasting instead. 
+    
+    #We use the SARIMA(3,1,3)(1,0,0) as it has the least RMSE
+    
+    arimaforayala <- arima(APrice, order=c(3,1,3), seasonal = list(order = c(1,0,0)))
+    print(summary(arimaforayala))
+    checkresiduals(arimaforayala)
+    
+    fcastarimaayala <- forecast(arimaforayala, h=1) #for 1 period ahead
+    autoplot
+    plot(fcastarimaayala)
+    print(summary(fcastarimaayala))
+    
+  #PSEI
+    #Load PSEi Dataset
+    PSE <- read.csv("PSEi 2020. to 2024csv copy.csv")
+    
+    PSE$Date <- as.Date(PSE$Date, format = "%m/%d/%Y")
+    PSE <- PSE[order(PSE$Date), ]
+    
+    #Removes commas and convert the Price column to numeric
+    PSE$Price <- as.numeric(gsub(",", "", PSE$Price)) #Did not have this code at first, encountered price plot issue where R could not read up to thousands place. 
+    
+    #Transform data into a Time Series object for ARIMA modeling and further regression
+    PSEPrice  <- ts(PSE['Price'], start = c(2020,01,05),frequency = 52) 
+    #Frequency is 52 for weekly, starting with January of 2014
+    #Price is the column name for the closing price of PSEi 
+    
+    autoplot(PSEPrice) + geom_line(color = "lightsteelblue3")+ ggtitle("Weekly PSEi Stock Price from 2020 to 2024 (in PHP)") + ylab("Price") + theme(plot.title = element_text(color = "lightseagreen")) 
+    
+    #Let's conduct in-sample forecasting before we outsample forecast to see what model we should use. 
+    
+    #In sample forecasting
+    #Split the sample into training and test sets
+    split_PSEPrice <- ts_split(PSEPrice, sample.out = 52)
+    PSEtrain <- split_PSEPrice$train
+    PSEtest <- split_PSEPrice$test
+    
+    length(PSEtrain)
+    length(PSEtest)
+    
+    #FIRST: ARIMA diagnostic to know what lags to use
+    arima_diag(PSEtrain)
+    
+    #First in-sample: ARIMA(1,1,1) model
+    PSEarima111 <- arima(PSEtrain, order=c(1,1,1))
+    autoplot(PSEarima111)
+    print(summary(PSEarima111))
+    checkresiduals(PSEarima111)
+    
+    PSEfcast1 <- forecast(PSEarima111, h = 52)
+    test_forecast(actual = PSEPrice, forecast.obj = PSEfcast1, test = PSEtest)
+    accuracy(PSEfcast1, PSEtest)
+    
+    #Second in-sample: auto.arima model
+    PSEautoARIMA <- auto.arima(PSEtrain, seasonal = TRUE)
+    autoplot(PSEautoARIMA)
+    print(summary(PSEautoARIMA))
+    checkresiduals(PSEautoARIMA)
+    
+    PSEfcastauto <- forecast(PSEautoARIMA, h=52)
+    test_forecast(actual= PSEPrice, forecast.obj = PSEfcastauto, test = PSEtest)
+    
+    #autoplot shows that the other model's in-sample forecast captured the actual values better than the auto.arima function. 
+    
+    arimaforPSE <- auto.arima(PSEPrice, seasonal = TRUE)
+    print(summary(arimaforPSE))
+    checkresiduals(arimaforPSE)
+    
+    fcastarimaPSE <- forecast(arimaforPSE, h=1) #for 1 period ahead
+    autoplot
+    plot(fcastarimaPSE)
+    print(summary(fcastarimaPSE))
+  
