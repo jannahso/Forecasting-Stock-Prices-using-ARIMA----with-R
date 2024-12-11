@@ -194,4 +194,65 @@
     autoplot
     plot(fcastarimaayala)
     print(summary(fcastarimaayala))
-  
+
+  #PSEI
+    #Load PSEi Dataset
+    PSE <- read.csv("PSEi 2020. to 2024csv copy.csv")
+    
+    PSE$Date <- as.Date(PSE$Date, format = "%m/%d/%Y")
+    PSE <- PSE[order(PSE$Date), ]
+    
+    #Removes commas and convert the Price column to numeric
+    PSE$Price <- as.numeric(gsub(",", "", PSE$Price)) #Did not have this code at first, encountered price plot issue where R could not read up to thousands place. 
+    
+    #Transform data into a Time Series object for ARIMA modeling and further regression
+    PSEPrice  <- ts(PSE['Price'], start = c(2020,01,05),frequency = 52) 
+    #Frequency is 52 for weekly, starting with January of 2014
+    #Price is the column name for the closing price of PSEi 
+    
+    autoplot(PSEPrice) + geom_line(color = "lightsteelblue3")+ ggtitle("Weekly PSEi Stock Price from 2020 to 2024 (in PHP)") + ylab("Price") + theme(plot.title = element_text(color = "lightseagreen")) 
+    
+    #Let's conduct in-sample forecasting before we outsample forecast to see what model we should use. 
+    
+    #In sample forecasting
+    #Split the sample into training and test sets
+    split_PSEPrice <- ts_split(PSEPrice, sample.out = 52)
+    PSEtrain <- split_PSEPrice$train
+    PSEtest <- split_PSEPrice$test
+    
+    length(PSEtrain)
+    length(PSEtest)
+    
+    #FIRST: ARIMA diagnostic to know what lags to use
+    arima_diag(PSEtrain)
+    
+    #First in-sample: ARIMA(1,1,1) model
+    PSEarima111 <- arima(PSEtrain, order=c(1,1,1))
+    autoplot(PSEarima111)
+    print(summary(PSEarima111))
+    checkresiduals(PSEarima111)
+    
+    PSEfcast1 <- forecast(PSEarima111, h = 52)
+    test_forecast(actual = PSEPrice, forecast.obj = PSEfcast1, test = PSEtest)
+    accuracy(PSEfcast1, PSEtest)
+    
+    #Second in-sample: auto.arima model
+    PSEautoARIMA <- auto.arima(PSEtrain, seasonal = TRUE)
+    autoplot(PSEautoARIMA)
+    print(summary(PSEautoARIMA))
+    checkresiduals(PSEautoARIMA)
+    
+    PSEfcastauto <- forecast(PSEautoARIMA, h=52)
+    test_forecast(actual= PSEPrice, forecast.obj = PSEfcastauto, test = PSEtest)
+    
+    #autoplot shows that the other model's in-sample forecast captured the actual values better than the auto.arima function. 
+    
+    arimaforPSE <- auto.arima(PSEPrice, seasonal = TRUE)
+    print(summary(arimaforPSE))
+    checkresiduals(arimaforPSE)
+    
+    fcastarimaPSE <- forecast(arimaforPSE, h=1) #for 1 period ahead
+    autoplot
+    plot(fcastarimaPSE)
+    print(summary(fcastarimaPSE))
+   
